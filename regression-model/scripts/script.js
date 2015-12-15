@@ -1,13 +1,14 @@
 /* global math */
 /* global jQuery */
 jQuery(document).ready(function ($) {
-  var xMIN = -45;
-  var xMAX = 45;
-  var yMIN = -2;
-  var yMAX = 2;
-  var bMIN = -10;
-  var bMAX = 10;
+  var xMIN = 0;
+  var xMAX = 6;
+  var yMIN = -1;
+  var yMAX = 1;
+  var bMIN = 0;
+  var bMAX = 3;
   var i;
+  var dummyVar;
   var j;
   var testModelCoefficients = [];
 
@@ -38,6 +39,13 @@ jQuery(document).ready(function ($) {
     xArray.push(dummyArr);
     yArray.push(dummyY);
   }
+  var xArrayForCalc = xArray[0].map(function(col, i) {
+    return xArray.map(function(row) {
+      return row[i];
+    });
+  });
+
+  console.log(xArrayForCalc);
 
   // rendering to table.
   for (i = 0; i < n; i++) {
@@ -59,45 +67,90 @@ jQuery(document).ready(function ($) {
     $tBody.append($trTemp);
   }
 
-  var cArray = [];
-  for (i = 0; i < k + 1; i++) {
-    if (i) {
-      cArray.push(getArraySum(arrayMultiplier(yArray, xArray, i)));
-    } else {
-      cArray.push(getArraySum(yArray));
-    }
+  var yAverage = getArrayAverage(yArray);
+
+  var Gy = Math.sqrt((function() {
+    var dummyVar = 0;
+
+    yArray.forEach(function(y) {
+      dummyVar += Math.pow(y - yAverage, 2);
+    });
+
+    return dummyVar/(n - 1);
+  })());
+
+  console.log('Gy: ', Gy);
+
+  var Gxj = [];
+  for (i = 0; i < k; i++) {
+    Gxj.push(Math.sqrt((function() {
+      var dummyVar = 0;
+
+      xArrayForCalc[i].forEach(function(x) {
+        dummyVar += Math.pow(x - getArrayAverage(xArrayForCalc[i]), 2);
+      });
+
+      return dummyVar/(n - 1);
+    })()));
   }
 
-  console.log('C array: ', cArray);
+  Gxj.forEach(function(G, j) {
+    console.log('G[' + (j + 1) + ']: ', G);
+  });
 
-  var aArray = [];
-  for (i = 0; i < k + 1; i++) {
-    var dummyArray = [];
+  var Rm = [[1,0,0,0], [0,1,0,0], [0,0,1,0], [0,0,0,1]];
 
-    for (j = 0; j < k + 1; j++) {
-      if (!i && !j) {
-        dummyArray.push(n);
-      } else {
-        if (!i) {
-          dummyArray.push(getArraySumCol(xArray, j - 1));
-        } else if (!j) {
-          dummyArray.push(getArraySumCol(xArray, i - 1));
-        } else {
-          dummyArray.push(getArraySum(arrayArrayMultiplier(xArray, i - 1, j - 1)));
+  for (j = 0; j < k; j++) {
+    for (var l = 0; l < k; l++) {
+      if (l !== j) {
+        dummyVar = 0;
+
+        for (i = 0; i < n; i++) {
+          dummyVar += ((xArrayForCalc[j][i] - getArrayAverage(xArrayForCalc[j])) * (xArrayForCalc[l][i] - getArrayAverage(xArrayForCalc[l])));
         }
+
+        Rm[j][l] = Rm[l][j] = (dummyVar / ((n - 1) * Gxj[j] * Gxj[l]));
       }
     }
-
-    aArray.push(dummyArray);
   }
 
-  console.log('A array: ', aArray);
+  console.log("R Matric: ", Rm);
 
-  var i_aArray = math.inv(aArray);
+  var R0 = [];
 
-  console.log('A array Inverse: ', i_aArray);
+  for (j = 0; j < k; j++) {
+    dummyVar = 0;
+    for (i = 0; i < n; i++) {
+      dummyVar += ((yArray[i] - yAverage) * (xArrayForCalc[j][i] - getArrayAverage(xArrayForCalc[j])));
+    }
 
-  var bArray = math.multiply(cArray, i_aArray);
+    R0.push((dummyVar / ((n - 1) * Gy * Gxj[j])));
+  }
+
+  console.log("R0", R0);
+
+  var i_R = math.inv(Rm);
+
+  var aArray = math.multiply(R0, i_R);
+  var bArray = [];
+  aArray.forEach(function(a, j) {
+    bArray.push(((a * Gy) / Gxj[j]));
+  });
+
+  console.log("A Array: ", aArray);
+
+  bArray.unshift((function() {
+    var val = yAverage;
+
+    for (i = 0; i < k; i++) {
+      val -= (bArray[i] * getArrayAverage(xArrayForCalc[i]));
+    }
+
+    return val;
+  })());
+
+  console.log("B: ", bArray);
+
   var answerText = 'Answer: Y = ';
 
   for (i = 0; i < k + 1; i++) {
@@ -138,13 +191,12 @@ jQuery(document).ready(function ($) {
   console.log('SS(E): ', ssE);
 
   var ssR = 0;
-  var yAverage = getArrayAverage(yArray);
   var ySAverage = getArrayAverage(ySArray);
 
-  console.log('yAverage: ', yAverage);
+  console.log('ySAverage: ', ySAverage);
 
   for (i = 0; i < n; i++) {
-    ssR += Math.pow(yArray[i] - yAverage, 2);
+    ssR += Math.pow(ySArray[i] - ySAverage, 2);
   }
 
   console.log('SS(R): ', ssR);
@@ -152,10 +204,10 @@ jQuery(document).ready(function ($) {
   var ssO = 0;
 
   for (i = 0; i < n; i++) {
-    ssO += Math.pow(ySArray[i] - ySAverage, 2);
+    ssO += Math.pow(yArray[i] - yAverage, 2);
   }
 
-  console.log('ySAverage: ', ySAverage);
+  console.log('yAverage: ', yAverage);
 
   console.log('SS(O): ', ssO);
 
